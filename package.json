@@ -10,12 +10,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@masatomakino/threejs-interactive-object": "^0.18.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "three": "^0.164.1"
   },
   "devDependencies": {
+    "@masatomakino/threejs-interactive-object": "^0.18.0",
     "@types/react": "^18.2.66",
     "@types/react-dom": "^18.2.22",
     "@types/three": "^0.164.1",
