@@ -1,201 +1,240 @@
-import { useEffect, useRef, useState } from "react";
-import * as THREE from "three";
-import { DirectionalLight } from "three";
-import { OrbitControls } from "three/addons/controls/OrbitControls.js";
-import { FBXLoader, OBJLoader } from "three/examples/jsm/Addons.js";
+import { useEffect, useRef } from "react";
+import { FBXLoader, OrbitControls } from "three/examples/jsm/Addons.js";
+import {
+  AmbientLight,
+  Box3,
+  DirectionalLight,
+  Group,
+  Mesh,
+  MeshBasicMaterial,
+  Object3DEventMap,
+  PerspectiveCamera,
+  Scene,
+  SphereGeometry,
+  TextureLoader,
+  Vector3,
+  WebGLRenderer,
+} from "three";
+import * as TWEEN from "@tweenjs/tween.js";
+// import * as interfaces from './interfaces';
+// import { getNewAnnotation } from './meshs';
+import { MouseEventManager } from "@masatomakino/threejs-interactive-object";
 
-var scene = new THREE.Scene();
+import bg from './assets/images/bg.jpg';
+import model from './assets/models/model.fbx';
 
-const camera: THREE.PerspectiveCamera = new THREE.PerspectiveCamera(
-  75,
-  window.innerWidth / window.innerHeight,
-  0.1,
-  100000
-);
+let profileIndex: number = 1;
+const transitTime = 1500;
+const viewLockDuration: number = 10;
+let viewLockTimestamp: number = Date.now() / 1000 - viewLockDuration;
+
+const profiles: number[][] = [[-24, 24, 24]];
+
+const focusPositions: number[][] = [[0, 0, 0]];
+
+function getLoader(filePath: string) {
+  var loader = null;
+  var fileExtension = null;
+  const slices = filePath.split(".");
+  if (slices.length > 0) {
+    fileExtension = slices[slices.length - 1];
+  }
+  if (fileExtension === "fbx") {
+    loader = new FBXLoader();
+  }
+  return loader;
+}
+
+function loadModel(
+  filePath: string,
+  successCallback: (object: Group<Object3DEventMap>) => void
+) {
+  const loader = getLoader(filePath);
+  if (loader != null) {
+    loader.load(
+      filePath,
+      function (object) {
+        successCallback(object);
+      },
+      function (xhr) {
+        console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
+      },
+      function (error) {
+        console.log("Error: " + error);
+      }
+    );
+  }
+}
+
+function animateCamera(
+  camera: PerspectiveCamera,
+  newPosition: number[],
+  time: number,
+  focus: number[]
+) {
+  new TWEEN.Tween(camera.position)
+    .to(
+      {
+        x: newPosition[0],
+        y: newPosition[1],
+        z: newPosition[2],
+      },
+      time
+    )
+    .onUpdate(() => {
+      camera.lookAt(new Vector3(...focus));
+    })
+    .start();
+  const animate = () => {
+    requestAnimationFrame(animate);
+    TWEEN.update();
+  };
+  animate();
+}
+
+function changeView(camera: PerspectiveCamera) {
+  if (Date.now() / 1000 - viewLockTimestamp > viewLockDuration) {
+    profileIndex %= profiles.length;
+    animateCamera(
+      camera,
+      profiles[profileIndex],
+      transitTime,
+      focusPositions[0]
+    );
+    profileIndex += 1;
+  }
+}
+
+function getBackground() {
+  const background = new SphereGeometry(500, 60, 40);
+  background.scale(-1, 1, 1);
+  const mesh = new Mesh(
+    background,
+    new MeshBasicMaterial({
+      map: new TextureLoader().load(bg),
+    })
+  );
+  return mesh;
+}
 
 function getAmbientLight() {
-  return new THREE.AmbientLight(0xffffff, 0.9);
+  return new AmbientLight(0x404040, 0.4);
 }
 
 function getDirectionalLight() {
   const directionalLight = new DirectionalLight(0xffffff, 1);
-  directionalLight.position.set(0, 1, 1).normalize();
+  directionalLight.position.set(0, 1, 0).normalize();
   return directionalLight;
 }
 
-function FloorPlan() {
+function FloorPlanModel() {
   const divRef = useRef<HTMLDivElement>(null);
-
-  var getLoader = function (filePath: string) {
-    var loader = null;
-    var fileExtension = null;
-    const slices = filePath.split(".");
-    if (slices.length > 0) {
-      fileExtension = slices[slices.length - 1];
-    }
-    if (fileExtension == "obj") {
-      console.log("OBJLoader");
-      loader = new OBJLoader();
-    } else if (fileExtension == "fbx") {
-      console.log("FBXLoader");
-      loader = new FBXLoader();
-    }
-    return loader;
-  };
-
-  var loadModel = function (
-    filePath: string,
-    successCallback: (
-      object: THREE.Group<THREE.Object3DEventMap>,
-      z: number
-    ) => void
-  ) {
-    const loader = getLoader(filePath);
-    if (loader != null) {
-      loader.load(
-        filePath,
-        function (object) {
-          successCallback(object, 2000);
-        },
-        function (xhr) {
-          console.log((xhr.loaded / xhr.total) * 100 + "% loaded");
-        },
-        function (error) {
-          console.log("Error: " + error);
-        }
-      );
-    }
-  };
-
-  var clearDivRef = function () {
-    if (divRef.current && divRef.current.children) {
-      while (divRef.current.children.length > 0) {
-        divRef.current.removeChild(divRef.current.children[0]);
-      }
-    }
-  };
-
   useEffect(function () {
-    // // const stopThrehold = 0.5;
-    // // let prevPosition: number[] = profiles[profileIndex];
-    // // const focusPosition: number[] = focusPositions[profileIndex];
-    // const renderer: THREE.WebGLRenderer = new THREE.WebGLRenderer();
+    loadModel(model, function (object) {
+      const camera = new PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
 
-    // if (
-    //   divRef.current &&
-    //   divRef.current.children &&
-    //   divRef.current.children.length == 0
-    // ) {
-    //   divRef.current.appendChild(renderer.domElement);
-    // }
+      const renderer = new WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      if (
+        divRef.current &&
+        divRef.current.children &&
+        divRef.current.children.length === 0
+      ) {
+        divRef.current.appendChild(renderer.domElement);
+      }
 
-    // // const manager = new MouseEventManager(scene, camera, renderer.domElement);
-    // // console.log(manager);
-    // renderer.setPixelRatio(window.devicePixelRatio);
-    // renderer.setSize(window.innerWidth, window.innerHeight);
+      const scene = new Scene();
+      scene.add(getAmbientLight());
+      scene.add(getDirectionalLight());
 
-    // // camera.position.x = profiles[profileIndex][0];
-    // // camera.position.y = profiles[profileIndex][1];
-    // // camera.position.z = profiles[profileIndex][2];
+      object.rotateX(-Math.PI / 2);
 
-    // // renderer.render(scene, camera);
+      const box = new Box3().setFromObject(object);
+      const center = box.getCenter(new Vector3());
+      object.position.x += object.position.x - center.x;
+      object.position.y += object.position.y - center.y;
+      object.position.z += object.position.z - center.z;
 
-    // const controls = new OrbitControls(camera, renderer.domElement);
-    // controls.addEventListener("change", () => {
-    //   // viewLockTimestamp = Date.now() / 1000;
-    // });
+      scene.add(object);
 
-    // // const axisHelper = new THREE.AxesHelper(250);
-    // // scene.add(axisHelper);
-
-    // fbxLoader.load("models/WSP_compress.fbx", (obj) => {
-    //   obj.scale.set(0.01, 0.01, 0.01);
-    //   obj.rotateY(-Math.PI);
-    //   scene.add(obj);
-    // });
-
-    // scene.add(getAmbientLight());
-
-    // // animateCamera(camera, profiles[0], transitTime, focusPositions[0]);
-    // // setInterval(changeView, 10000);
-
-    // const animate = (t?: any) => {
-    //   // TWEEN.update(t);
-    //   requestAnimationFrame(animate);
-    //   // camera.lookAt(new THREE.Vector3(focusPosition[0], focusPosition[1], focusPosition[2]));
-    //   // const diff: number[] = getVector3Difference(prevPosition, profiles[profileIndex], stopThrehold);
-    //   // camera.position.x += diff[0] / 50 > 0.3 ? 0.3 : diff[0] / 50;
-    //   // camera.position.y += diff[1] / 50 > 0.3 ? 0.3 : diff[1] / 50;
-    //   // camera.position.z += diff[2] / 50 > 0.3 ? 0.3 : diff[2] / 50;
-    //   // prevPosition = camera.position.toArray();
-    //   // const focusDiff = getVector3Difference(focusPosition, focusPositions[profileIndex], stopThrehold);
-    //   // focusPosition[0] += focusDiff[0] / 60;
-    //   // focusPosition[1] += focusDiff[1] / 60;
-    //   // focusPosition[2] += focusDiff[2] / 60;
-    //   // camera.lookAt(new THREE.Vector3(focusPosition[0], focusPosition[1], focusPosition[2]));
-    //   // // changePosition();
-    //   // // controls.update()
-    //   // renderer.setPixelRatio(window.devicePixelRatio);
-    //   // renderer.setSize(window.innerWidth, window.innerHeight);
-    //   renderer.render(scene, camera);
-    // };
-    // animate();
-
-    const renderer: THREE.WebGLRenderer = new THREE.WebGLRenderer();
-    renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(window.innerWidth, window.innerHeight);
-
-    if (divRef.current) {
-      clearDivRef();
-      divRef.current.appendChild(renderer.domElement);
-
-      loadModel("models/PVPanelRemovedPeople-3DView-{3D}.fbx", function (object, z) {
-        scene.add(getAmbientLight());
-        scene.add(getDirectionalLight());
-        scene.add(object);
-        camera.position.z = z;
-        const controls = new OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true;
-        var dragging = false;
-        var startDragging = function () {
-          dragging = true;
-        };
-        controls.addEventListener("start", startDragging);
-        var endDragging = function () {
-          dragging = false;
-        };
-        controls.addEventListener("end", endDragging);
-        var animate = function () {
-          requestAnimationFrame(animate);
-          if (!dragging) {
-            object.rotation.x += 0.01;
-            object.rotation.y += 0.01;
-          }
-          renderer.render(scene, camera);
-        };
-        animate();
-        var resize = function () {
-          camera.aspect = window.innerWidth / window.innerHeight;
-          camera.updateProjectionMatrix();
-          renderer.setSize(window.innerWidth, window.innerHeight);
-        };
-        window.addEventListener("resize", resize);
-        return function () {
-          window.removeEventListener("resize", resize);
-          controls.removeEventListener("end", endDragging);
-          controls.removeEventListener("start", startDragging);
-          if (divRef.current && divRef.current.children) {
-            while (divRef.current.children.length > 0) {
-              divRef.current.removeChild(renderer.domElement);
-            }
-          }
-          renderer.dispose();
-        };
+      const controls = new OrbitControls(camera, renderer.domElement);
+      controls.addEventListener("change", () => {
+        viewLockTimestamp = Date.now() / 1000;
       });
-    }
+
+      scene.add(getBackground());
+
+      new MouseEventManager(scene, camera, renderer.domElement);
+
+      // const annotations: interfaces.clickables[] = [
+      //     { position: new Vector3(18, 10, -45), zone: 1, group: 14, type: 'light', power: true },
+      //     { position: new Vector3(11.75, 10, -45), zone: 2, group: 15, type: 'light', power: true },
+      //     { position: new Vector3(5, 10, -45), zone: 3, group: 16, type: 'light', power: true },
+      //     { position: new Vector3(18, 10, -45), zone: 4, group: 18, type: 'light', power: true },
+      //     { position: new Vector3(0, 10, -33), zone: 5, group: 19, type: 'light', power: true },
+      //     { position: new Vector3(-4, 10, -30), zone: 6, group: 20, type: 'light', power: true },
+      //     { position: new Vector3(4, 10, -30), zone: 7, group: 26, type: 'light', power: true },
+      //     { position: new Vector3(-4, 10, -23), zone: 8, group: 27, type: 'light', power: true },
+      //     { position: new Vector3(4, 10, -23), zone: 9, group: 28, type: 'light', power: true },
+      //     { position: new Vector3(-12, 10, -16), zone: 10, group: 30, type: 'light', power: true },
+      //     { position: new Vector3(-4, 10, -16), zone: 11, group: 31, type: 'light', power: true },
+      //     { position: new Vector3(4, 10, -16), zone: 12, group: 32, type: 'light', power: true },
+      //     { position: new Vector3(-12, 10, -33), zone: 13, group: 38, type: 'light', power: true },
+      //     { position: new Vector3(-12, 10, -23), zone: 14, group: 39, type: 'light', power: true },
+      //     { position: new Vector3(-12, 10, -30), zone: 15, group: 40, type: 'light', power: true },
+      //     { position: new Vector3(20, 10, -55), type: 'cctv', id: 'first' },
+      //     { position: new Vector3(-7, 10, -19), type: 'cctv', id: 'second' },
+      //     { position: new Vector3(-11, 10, 39), type: 'cctv', id: 'third' }
+      // ];
+
+      // annotations.forEach((annotation) => {
+      //     annotation.mesh = getNewAnnotation(annotation, scene);
+      // });
+
+      animateCamera(camera, profiles[0], transitTime, focusPositions[0]);
+      setInterval(() => changeView(camera), 10000);
+
+      const animate = function (t?: any) {
+        TWEEN.update(t);
+        requestAnimationFrame(animate);
+        renderer.render(scene, camera);
+      };
+      animate();
+
+      const resize = function () {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      };
+      window.addEventListener("resize", resize);
+
+      return function () {
+        window.removeEventListener("resize", resize);
+        if (divRef.current && divRef.current.children) {
+          while (divRef.current.children.length > 0) {
+            divRef.current.removeChild(renderer.domElement);
+          }
+        }
+        renderer.dispose();
+      };
+    });
   }, []);
 
-  return <div ref={divRef}></div>;
+  return (
+    <div
+      ref={divRef}
+      style={{
+        position: "absolute",
+        bottom: 0,
+        right: 0,
+      }}
+    ></div>
+  );
 }
 
-export default FloorPlan;
+export default FloorPlanModel;
