@@ -20,8 +20,8 @@ import * as TWEEN from "@tweenjs/tween.js";
 // import { getNewAnnotation } from './meshs';
 import { MouseEventManager } from "@masatomakino/threejs-interactive-object";
 
-import bg from './assets/images/bg.jpg';
-import model from './assets/models/model.fbx';
+import bg from "./assets/images/bg.jpg";
+import model from "./assets/models/model.fbx";
 
 let profileIndex: number = 1;
 const transitTime = 1500;
@@ -118,12 +118,12 @@ function getBackground() {
 }
 
 function getAmbientLight() {
-  return new AmbientLight(0x404040, 0.4);
+  return new AmbientLight(0xffffff, 1);
 }
 
 function getDirectionalLight() {
   const directionalLight = new DirectionalLight(0xffffff, 1);
-  directionalLight.position.set(0, 1, 0).normalize();
+  directionalLight.position.set(0, 0, 1).normalize();
   return directionalLight;
 }
 
@@ -150,12 +150,15 @@ function FloorPlanModel() {
 
       const scene = new Scene();
       scene.add(getAmbientLight());
-      scene.add(getDirectionalLight());
+      //   scene.add(getDirectionalLight());
 
-      object.rotateX(-Math.PI / 2);
+      //   object.rotateX(-Math.PI / 2);
+
+      object.scale.set(0.04, 0.04, 0.04);
 
       const box = new Box3().setFromObject(object);
       const center = box.getCenter(new Vector3());
+
       object.position.x += object.position.x - center.x;
       object.position.y += object.position.y - center.y;
       object.position.z += object.position.z - center.z;
